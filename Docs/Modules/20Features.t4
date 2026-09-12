@@ -27,6 +27,8 @@ XPortal has been built with multiplayer support at its core. All players must ru
 
 The XPortal UI will respond to gamepad input when configuring your portal. As of v1.2.10 it even shows you the gamepad keyhints!
 
+Note: Currently gamepad hints are not showing correctly, and opening the Portal configuration panel will show some warnings in the console. I aim to address this in a future update.
+
 <#= mf.Image("https://raw.githubusercontent.com/SpikeHimself/XPortal/main/images/ui-keyhints-small.png") #>
 
 The controls are as follows:
@@ -48,7 +50,6 @@ XPortal has been made fully compatible with the following mods:
 <#= 
 mf.List(ListBullets.Asterisk, items: new string[] {
 	$"{linkNexusUpdateCheck} by aedenthorn",
-	$"{linkValheimVR} by Flatscreen to VR Modders",
 	$"{linkStonePortal} by Jere Kuusela",
 	$"{linkAdvancedPortals} by Randy Knapp"
 })
