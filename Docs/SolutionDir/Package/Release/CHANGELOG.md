@@ -1,11 +1,22 @@
-#### v1.2.24 (2026-02-07)
+#### v1.2.25 (2026-09-12)
 
- * Update BepInEx 5.4.2333
+	* Add translation to Japanese
 
- * Update Jotunn 2.27.1
+	* Update Jotunn 2.30.0
+
+	* Fix ZDOMan GetPortalList call (thanks MattFromTheFuture!)
+
+	* Various reports have shown that XPortal is no longer fully compatible with Valheim VR, so this has been removed from the documentation
 
 <details>
 <summary>Click to view previous versions</summary>
+	
+* **v1.2.24** (2026-02-07)
+	
+	* Update BepInEx 5.4.2333
+
+	* Update Jotunn 2.27.1
+
 	
 * **v1.2.23** (2025-04-01)
 	

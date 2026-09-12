@@ -41,6 +41,8 @@ XPortal has been built with multiplayer support at its core. All players must ru
 
 The XPortal UI will respond to gamepad input when configuring your portal. As of v1.2.10 it even shows you the gamepad keyhints!
 
+Note: Currently gamepad hints are not showing correctly, and opening the Portal configuration panel will show some warnings in the console. I aim to address this in a future update.
+
 <img src="https://raw.githubusercontent.com/SpikeHimself/XPortal/main/images/ui-keyhints-small.png" />
 
 The controls are as follows:
@@ -57,7 +59,6 @@ The controls are as follows:
 XPortal has been made fully compatible with the following mods:
 
 * [Nexus Update Check](https://valheim.thunderstore.io/package/nexusreupload/aedenthorn_Nexus_Update_Check/) by aedenthorn
-* [VHVR - Valheim VR](https://valheim.thunderstore.io/package/Maynard/VHVR/) by Flatscreen to VR Modders
 * [Stone Portal](https://valheim.thunderstore.io/package/JereKuusela/Stone_Portal/) by Jere Kuusela
 * [Advanced Portals](https://valheim.thunderstore.io/package/RandyKnapp/AdvancedPortals/) by Randy Knapp
 
@@ -137,6 +138,8 @@ To add a translation to XPortal, choose `Translation` when submitting a [New iss
 * VasariRulez for translating to Italian
 * Felix for translating to Chinese
 * cawa-93 for translating to Ukrainian
+* Yukimimiya for translating to Japanese
+* MattFromTheFuture for the 1.0 patch
 
 
 # I did more too!
