@@ -1,3 +1,5 @@
 	* Add translation to Japanese
 
 	* Update Jotunn 2.30.0
+
+	* Fix ZDOMan GetPortalList call (thanks MattFromTheFuture!)
