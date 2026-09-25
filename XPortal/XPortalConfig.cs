@@ -30,6 +30,7 @@ namespace XPortal
             public bool DoublePortalCosts;
             public ConfigEntry<Vector3> DefaultPortal;
             public bool HidePortalDistance;
+            public bool TravelMenuOnEnter;
         }
 
         /// <summary>
@@ -88,6 +89,9 @@ namespace XPortal
 
             var cfgHidePortalDistance = configFile.Bind("General", "HidePortalDistance", false, "In the list of portals, do not show how far away other portals are." + Desc_EnforcedByServer);
             Local.HidePortalDistance = cfgHidePortalDistance.Value;
+
+            var cfgTravelMenuOnEnter = configFile.Bind("General", "TravelMenuOnEnter", true, "When entering a portal, show a list of all portals to choose where to travel to, instead of teleporting to the portal's configured destination. The configured destination is preselected in the list. Configuring the portal is only possible by interacting with it.");
+            Local.TravelMenuOnEnter = cfgTravelMenuOnEnter.Value;
         }
 
         /// <summary>

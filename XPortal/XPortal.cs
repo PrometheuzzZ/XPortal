@@ -1,4 +1,4 @@
-using BepInEx;
+﻿using BepInEx;
 using Jotunn.Managers;
 using Jotunn.Utils;
 using System.Collections.Generic;
@@ -267,6 +267,68 @@ namespace XPortal
             var portal = KnownPortalsManager.Instance.GetKnownPortalById(portalId);
             Log.Debug($"Interacting with: {portal}");
             PortalConfigurationPanel.Instance.ConfigurePortal(portal);
+        }
+
+        /// <summary>
+        /// The player has walked into a portal: show the list of destinations to travel to
+        /// </summary>
+        /// <param name="portalId">The ZDOID of the portal being entered</param>
+        /// <param name="exitDistance">How far in front of the destination portal the player should arrive</param>
+        /// <param name="allowAllItems">Whether this portal lets the player travel with any item</param>
+        internal static void OnPortalEntered(ZDOID portalId, float exitDistance, bool allowAllItems)
+        {
+            if (PortalConfigurationPanel.Instance.IsActive())
+            {
+                return;
+            }
+
+            if (!KnownPortalsManager.Instance.ContainsId(portalId))
+            {
+                Log.Error("Entering an unknown portal");
+                SendToServer.SyncRequest($"Entering unknown portal `{portalId}`");
+                return;
+            }
+
+            var portal = KnownPortalsManager.Instance.GetKnownPortalById(portalId);
+            Log.Debug($"Entering: {portal}");
+            PortalConfigurationPanel.Instance.ChooseDestination(portal, exitDistance, allowAllItems);
+        }
+
+        /// <summary>
+        /// Teleport the local player to the chosen portal
+        /// </summary>
+        /// <param name="targetId">The ZDOID of the destination portal</param>
+        /// <param name="exitDistance">How far in front of the destination portal the player should arrive</param>
+        /// <param name="allowAllItems">Whether the portal being travelled through lets the player travel with any item</param>
+        internal static void TravelTo(ZDOID targetId, float exitDistance, bool allowAllItems)
+        {
+            var player = Player.m_localPlayer;
+            if (!player || !KnownPortalsManager.Instance.ContainsId(targetId))
+            {
+                return;
+            }
+
+            if (!allowAllItems && !player.IsTeleportable())
+            {
+                player.Message(MessageHud.MessageType.Center, "$msg_noteleport");
+                return;
+            }
+
+            var target = KnownPortalsManager.Instance.GetKnownPortalById(targetId);
+            Log.Debug($"Travelling to: {target}");
+
+            // Arrive in front of the destination portal, just like the game does
+            var position = target.Location;
+            var rotation = player.transform.rotation;
+            var targetZdo = ZDOMan.instance.GetZDO(targetId);
+            if (targetZdo != null)
+            {
+                position = targetZdo.GetPosition();
+                rotation = targetZdo.GetRotation();
+            }
+            var arrival = position + rotation * Vector3.forward * exitDistance + Vector3.up;
+
+            player.TeleportTo(arrival, rotation, distantTeleport: true);
         }
 
         /// <summary>

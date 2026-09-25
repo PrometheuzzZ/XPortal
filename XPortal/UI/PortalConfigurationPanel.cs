@@ -60,10 +60,18 @@ namespace XPortal.UI
         static readonly float thirdRowTop = secondRowTop - rowHeight - padding;
         static readonly float firstColumnLeft = 0f + padding;
         static readonly float secondColumnLeft = firstColumnLeft + labelWidth + padding;
+        static readonly float configurePanelHeight = 320f;
+        static readonly float travelPanelHeight = configurePanelHeight - 2 * (rowHeight + padding);
         // Great. Anyway, let's move on now..
         #endregion
 
         private GameObject mainPanel;
+        private GameObject portalNameLabelObject;
+        private GameObject portalNameInputObject;
+        private GameObject targetPortalLabelObject;
+        private GameObject defaultPortalLabelObject;
+        private GameObject defaultPortalCheckboxObject;
+        private GameObject okayButtonObject;
         private GameObject pingMapButtonObject;
         private GameObject targetPortalDropdownObject;
         private Dropdown targetPortalDropdown;
@@ -79,6 +87,11 @@ namespace XPortal.UI
 
         // The ZDOID of the target that was selected in the dropdown
         private ZDOID selectedTargetId;
+
+        // Whether the panel is used to choose where to travel to (true) or to configure the portal (false)
+        private bool travelMode;
+        private float travelExitDistance;
+        private bool travelAllowAllItems;
 
         #region Input Button Configs
         private ButtonConfig uiDropdownScrollUpButton;
@@ -152,7 +165,7 @@ namespace XPortal.UI
 
             GUIManager.BlockInput(active);
             mainPanel.SetActive(active);
-            if (active)
+            if (active && !travelMode)
             {
                 ActivateInputField();
             }
@@ -226,6 +239,7 @@ namespace XPortal.UI
         {
             InitialiseUI();
             
+            travelMode = false;
             thisPortal = portal;
             portalNameInputField.text = portal.Name;
             selectedTargetId = portal.Target;
@@ -233,8 +247,50 @@ namespace XPortal.UI
             defaultPortalToggle.isOn = thisPortal.IsDefaultPortal;
 
             PopulateDropdown();
+            ApplyMode();
 
             Show();
+        }
+
+        public void ChooseDestination(KnownPortal portal, float exitDistance, bool allowAllItems)
+        {
+            InitialiseUI();
+
+            travelMode = true;
+            travelExitDistance = exitDistance;
+            travelAllowAllItems = allowAllItems;
+            thisPortal = portal;
+
+            // Preselect the portal's configured destination
+            selectedTargetId = portal.Target;
+
+            PopulateDropdown();
+            ApplyMode();
+
+            Show();
+        }
+
+        /// <summary>
+        /// Show only the destination row when travelling, and all rows when configuring
+        /// </summary>
+        private void ApplyMode()
+        {
+            portalNameLabelObject.SetActive(!travelMode);
+            portalNameInputObject.SetActive(!travelMode);
+            defaultPortalLabelObject.SetActive(!travelMode);
+            defaultPortalCheckboxObject.SetActive(!travelMode);
+
+            float destinationRowTop = travelMode ? firstRowTop : secondRowTop;
+            foreach (var go in new[] { targetPortalLabelObject, targetPortalDropdownObject, pingMapButtonObject })
+            {
+                var rt = go.GetComponent<RectTransform>();
+                rt.anchoredPosition = new Vector2(rt.anchoredPosition.x, destinationRowTop);
+            }
+
+            var mainPanelRT = mainPanel.GetComponent<RectTransform>();
+            mainPanelRT.sizeDelta = new Vector2(mainPanelRT.sizeDelta.x, travelMode ? travelPanelHeight : configurePanelHeight);
+
+            okayButtonObject.GetComponentInChildren<Text>().text = Localization.instance.Localize(travelMode ? "$hud_xportal_travel" : "$menu_ok");
         }
 
         private void PopulateDropdown()
@@ -248,11 +304,19 @@ namespace XPortal.UI
 
             int index = -1;
 
-            // Add "None" option at index `0`
-            var strNone = Localization.instance.Localize("$piece_portal_target_none"); // "(None)"
-            targetPortalDropdown.options.Insert(++index, new Dropdown.OptionData(strNone));
-            targetPortalDropdown.value = index;
-            dropdownIndexToZDOIDMapping.Add(index, ZDOID.None);
+            if (travelMode)
+            {
+                // There is no point in travelling to "(None)"
+                targetPortalDropdown.value = 0;
+            }
+            else
+            {
+                // Add "None" option at index `0`
+                var strNone = Localization.instance.Localize("$piece_portal_target_none"); // "(None)"
+                targetPortalDropdown.options.Insert(++index, new Dropdown.OptionData(strNone));
+                targetPortalDropdown.value = index;
+                dropdownIndexToZDOIDMapping.Add(index, ZDOID.None);
+            }
 
             // Get all KnownPortals, sorted by Name
             var portalsSorted = KnownPortalsManager.Instance.GetSortedList();
@@ -307,6 +371,12 @@ namespace XPortal.UI
                 dropdownIndexToZDOIDMapping.Add(index, portal.Id);
             }
 
+            if (travelMode)
+            {
+                // The configured destination may not be in the list, so use whatever ended up selected
+                selectedTargetId = dropdownIndexToZDOIDMapping.TryGetValue(targetPortalDropdown.value, out var shownTargetId) ? shownTargetId : ZDOID.None;
+            }
+
             targetPortalDropdown.RefreshShownValue();
             SetPingMapButtonActive(selectedTargetId != ZDOID.None);
 
@@ -323,6 +393,16 @@ namespace XPortal.UI
 
         private void OnOkayButtonClicked()
         {
+            if (travelMode)
+            {
+                Hide();
+                if (selectedTargetId != ZDOID.None)
+                {
+                    XPortal.TravelTo(selectedTargetId, travelExitDistance, travelAllowAllItems);
+                }
+                return;
+            }
+
             XPortal.PortalInfoSubmitted(thisPortal, portalNameInputField.text, selectedTargetId, defaultPortalToggle.isOn);
             Hide();
         }
@@ -367,7 +447,7 @@ namespace XPortal.UI
                         anchorMax: new Vector2(0.5f, 0.5f),
                         position: new Vector2(0f, 0f),
                         width: mainPanelWidthMin,
-                        height: 320f,
+                        height: configurePanelHeight,
                         draggable: false);
                 mainPanel.name = GO_MAINPANEL;
                 mainPanel.AddComponent<CanvasGroup>();
@@ -401,7 +481,7 @@ namespace XPortal.UI
 
 
                 // Portal name label
-                var portalNameLabelObject = GUIManager.Instance.CreateText(
+                portalNameLabelObject = GUIManager.Instance.CreateText(
                         text: Localization.instance.Localize("$piece_portal_tag"), // "Name"
                         parent: mainPanel.transform,
                         anchorMin: new Vector2(0f, 1f),    // anchor top left
@@ -424,7 +504,7 @@ namespace XPortal.UI
 
 
                 // Portal name textbox
-                var portalNameInputObject = GUIManager.Instance.CreateInputField(
+                portalNameInputObject = GUIManager.Instance.CreateInputField(
                         parent: mainPanel.transform,
                         anchorMin: new Vector2(0f, 1f),     // anchor top left
                         anchorMax: new Vector2(1f, 1f),     // anchor top right (so it stretches along with the panel)
@@ -440,7 +520,7 @@ namespace XPortal.UI
 
 
                 // Target portal label
-                var targetPortalLabelObject = GUIManager.Instance.CreateText(
+                targetPortalLabelObject = GUIManager.Instance.CreateText(
                     text: Localization.instance.Localize("$piece_portal_target"),
                     parent: mainPanel.transform,
                     anchorMin: new Vector2(0f, 1f),    // anchor top left
@@ -511,7 +591,7 @@ namespace XPortal.UI
 
 
                 // Default Portal label
-                var defaultPortalLabelObject = GUIManager.Instance.CreateText(
+                defaultPortalLabelObject = GUIManager.Instance.CreateText(
                         text: Localization.instance.Localize("$piece_portal_defaultportal"), // "Default Portal"
                         parent: mainPanel.transform,
                         anchorMin: new Vector2(0f, 1f),    // anchor top left
@@ -534,7 +614,7 @@ namespace XPortal.UI
 
 
                 // Default Portal checkbox
-                var defaultPortalCheckboxObject = GUIManager.Instance.CreateToggle(
+                defaultPortalCheckboxObject = GUIManager.Instance.CreateToggle(
                     parent: mainPanel.transform,
                     width: rowHeight,
                     height: rowHeight);
@@ -553,7 +633,7 @@ namespace XPortal.UI
                 AddGamepadHint(defaultPortalCheckboxObject, "JoyLStick", KeyCode.None);
 
                 // Okay button
-                var okayButtonObject = GUIManager.Instance.CreateButton(
+                okayButtonObject = GUIManager.Instance.CreateButton(
                         text: Localization.instance.Localize("$menu_ok"),
                         parent: mainPanel.transform,
                         anchorMin: new Vector2(1f, 0f),    // anchor bottom right
