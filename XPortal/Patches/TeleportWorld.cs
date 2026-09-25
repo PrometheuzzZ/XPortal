@@ -62,9 +62,8 @@ namespace XPortal.Patches
                 return false;
             }
 
-            if (!__instance.m_allowAllItems && !player.IsTeleportable())
+            if (!XPortal.CanTravel(player, __instance.m_allowAllItems))
             {
-                player.Message(MessageHud.MessageType.Center, "$msg_noteleport");
                 return false;
             }
 

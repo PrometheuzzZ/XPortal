@@ -308,9 +308,8 @@ namespace XPortal
                 return;
             }
 
-            if (!allowAllItems && !player.IsTeleportable())
+            if (!CanTravel(player, allowAllItems))
             {
-                player.Message(MessageHud.MessageType.Center, "$msg_noteleport");
                 return;
             }
 
@@ -328,7 +327,39 @@ namespace XPortal
             }
             var arrival = position + rotation * Vector3.forward * exitDistance + Vector3.up;
 
-            player.TeleportTo(arrival, rotation, distantTeleport: true);
+            if (player.TeleportTo(arrival, rotation, distantTeleport: true))
+            {
+                Game.instance.IncrementPlayerStat(PlayerStatType.PortalsUsed);
+            }
+        }
+
+        /// <summary>
+        /// The same checks the game does before letting a player use a portal
+        /// </summary>
+        /// <param name="player">The player trying to travel</param>
+        /// <param name="allowAllItems">Whether the portal lets the player travel with any item</param>
+        /// <returns>Whether the player is allowed to travel</returns>
+        internal static bool CanTravel(Player player, bool allowAllItems)
+        {
+            if (ZoneSystem.instance.GetGlobalKey(GlobalKeys.NoPortals))
+            {
+                player.Message(MessageHud.MessageType.Center, "$msg_blocked");
+                return false;
+            }
+
+            if (ZoneSystem.instance.GetGlobalKey(GlobalKeys.NoBossPortals) && (RandEventSystem.instance.GetBossEvent() != null || (ZoneSystem.instance.GetGlobalKey(GlobalKeys.activeBosses, out float activeBosses) && activeBosses > 0f)))
+            {
+                player.Message(MessageHud.MessageType.Center, "$msg_blockedbyboss");
+                return false;
+            }
+
+            if (!player.IsTeleportable(allowAllItems))
+            {
+                player.Message(MessageHud.MessageType.Center, "$msg_noteleport");
+                return false;
+            }
+
+            return true;
         }
 
         /// <summary>

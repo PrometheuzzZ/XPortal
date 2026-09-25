@@ -376,3 +376,6 @@ FodyWeavers.xsd
 
 # Don't ignore the Docs/SolutionDir contents
 !**Docs/[Ss]olution[Dd]ir/**
+
+# CI build (.github/build.sh)
+.build/
