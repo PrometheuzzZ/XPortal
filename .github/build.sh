@@ -18,7 +18,12 @@ mkdir -p "$WORK_DIR"
 if [ ! -f "$VALHEIM_INSTALL/valheim_server_Data/Managed/assembly_valheim.dll" ]; then
     mkdir -p "$WORK_DIR/steamcmd"
     curl -sSL https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz | tar xz -C "$WORK_DIR/steamcmd"
-    "$WORK_DIR/steamcmd/steamcmd.sh" +force_install_dir "$VALHEIM_INSTALL" +login anonymous +app_update 896660 validate +quit
+    # steamcmd sometimes fails with "Missing configuration" on its first connection, so retry
+    for attempt in 1 2 3; do
+        "$WORK_DIR/steamcmd/steamcmd.sh" +force_install_dir "$VALHEIM_INSTALL" +login anonymous +app_update 896660 validate +quit && break
+        if [ "$attempt" -eq 3 ]; then exit 1; fi
+        echo "steamcmd failed, retrying ($attempt)..."
+    done
 fi
 # Jotunn looks for valheim_Data, the server calls it valheim_server_Data
 ln -sfn valheim_server_Data "$VALHEIM_INSTALL/valheim_Data"
