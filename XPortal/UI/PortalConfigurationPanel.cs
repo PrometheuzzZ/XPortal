@@ -29,6 +29,8 @@ namespace XPortal.UI
         internal const string GO_DEFAULTPORTALCHECKBOX = Mod.Info.Name + "_DefaultPortalCheckbox";
         internal const string GO_OKAYBUTTON = Mod.Info.Name + "_OkayButton";
         internal const string GO_CANCELBUTTON = Mod.Info.Name + "_CancelButton";
+        internal const string GO_TRAVELLIST = Mod.Info.Name + "_TravelList";
+        internal const string GO_TRAVELLISTEMPTY = Mod.Info.Name + "_TravelListEmpty";
 
         #region Pain
         // Creating the UI was incredibly painful. I will never change the layout again. Ever.
@@ -61,7 +63,26 @@ namespace XPortal.UI
         static readonly float firstColumnLeft = 0f + padding;
         static readonly float secondColumnLeft = firstColumnLeft + labelWidth + padding;
         static readonly float configurePanelHeight = 320f;
-        static readonly float travelPanelHeight = configurePanelHeight - 2 * (rowHeight + padding);
+
+        // When travelling, the rows are replaced by a scrollable list of portals:
+
+        //////////////////////////////////////////
+        //               {header}               //
+        //                                      //
+        //  {l i s t - i t e m               }  //
+        //  {l i s t - i t e m               }  //
+        //  {...                             }  //
+        //                                      //
+        //  {ping}              {cancel} {travel} //
+        //////////////////////////////////////////
+        static readonly int travelListVisibleItems = 7;
+        static readonly float travelListItemHeight = 36f;
+        static readonly float travelListWidth = labelWidth + padding + inputLongWidth;
+        static readonly float travelListHeight = travelListVisibleItems * travelListItemHeight;
+        static readonly float travelButtonWidth = 180f;
+        static readonly float travelPanelHeight = -firstRowTop + travelListHeight + padding + submitButtonHeight + padding;
+        static readonly Color travelListItemColour = new Color(0.2f, 0.2f, 0.2f, 0.85f);
+        static readonly Color travelListSelectedItemColour = new Color(0.6f, 0.38f, 0.1f, 0.95f);
         // Great. Anyway, let's move on now..
         #endregion
 
@@ -72,6 +93,10 @@ namespace XPortal.UI
         private GameObject defaultPortalLabelObject;
         private GameObject defaultPortalCheckboxObject;
         private GameObject okayButtonObject;
+        private GameObject cancelButtonObject;
+        private GameObject travelListObject;
+        private GameObject travelListEmptyObject;
+        private ScrollRect travelListScrollRect;
         private GameObject pingMapButtonObject;
         private GameObject targetPortalDropdownObject;
         private Dropdown targetPortalDropdown;
@@ -92,6 +117,10 @@ namespace XPortal.UI
         private bool travelMode;
         private float travelExitDistance;
         private bool travelAllowAllItems;
+
+        // The rows of the travel list, and which one is selected
+        private readonly List<KeyValuePair<ZDOID, Image>> travelListItems = new List<KeyValuePair<ZDOID, Image>>();
+        private int travelListSelectedIndex = -1;
 
         #region Input Button Configs
         private ButtonConfig uiDropdownScrollUpButton;
@@ -138,13 +167,27 @@ namespace XPortal.UI
 
             if (ZInput.GetButtonUp(uiDropdownScrollUpButton.Name))
             {
-                ScrollDropdownItem(up: true);
+                if (travelMode)
+                {
+                    SelectTravelListItem(travelListSelectedIndex - 1);
+                }
+                else
+                {
+                    ScrollDropdownItem(up: true);
+                }
                 return;
             }
 
             if (ZInput.GetButtonUp(uiDropdownScrollDownButton.Name))
             {
-                ScrollDropdownItem(up: false);
+                if (travelMode)
+                {
+                    SelectTravelListItem(travelListSelectedIndex + 1);
+                }
+                else
+                {
+                    ScrollDropdownItem(up: false);
+                }
                 return;
             }
         }
@@ -264,7 +307,7 @@ namespace XPortal.UI
             // Preselect the portal's configured destination
             selectedTargetId = portal.Target;
 
-            PopulateDropdown();
+            PopulateTravelList();
             ApplyMode();
 
             Show();
@@ -277,20 +320,205 @@ namespace XPortal.UI
         {
             portalNameLabelObject.SetActive(!travelMode);
             portalNameInputObject.SetActive(!travelMode);
+            targetPortalLabelObject.SetActive(!travelMode);
+            targetPortalDropdownObject.SetActive(!travelMode);
             defaultPortalLabelObject.SetActive(!travelMode);
             defaultPortalCheckboxObject.SetActive(!travelMode);
-
-            float destinationRowTop = travelMode ? firstRowTop : secondRowTop;
-            foreach (var go in new[] { targetPortalLabelObject, targetPortalDropdownObject, pingMapButtonObject })
-            {
-                var rt = go.GetComponent<RectTransform>();
-                rt.anchoredPosition = new Vector2(rt.anchoredPosition.x, destinationRowTop);
-            }
+            travelListObject.SetActive(travelMode);
 
             var mainPanelRT = mainPanel.GetComponent<RectTransform>();
             mainPanelRT.sizeDelta = new Vector2(mainPanelRT.sizeDelta.x, travelMode ? travelPanelHeight : configurePanelHeight);
 
+            if (travelMode)
+            {
+                // Ping button goes in the bottom left corner
+                SetRect(pingMapButtonObject, anchor: new Vector2(0f, 0f), pivot: new Vector2(0f, 0f), position: new Vector2(padding, padding), size: new Vector2(submitButtonWidth, submitButtonHeight));
+                SetRect(okayButtonObject, anchor: new Vector2(1f, 0f), pivot: new Vector2(1f, 0f), position: new Vector2(0 - padding, padding), size: new Vector2(travelButtonWidth, submitButtonHeight));
+                SetRect(cancelButtonObject, anchor: new Vector2(1f, 0f), pivot: new Vector2(1f, 0f), position: new Vector2(0 - padding - travelButtonWidth - padding, padding), size: new Vector2(submitButtonWidth, submitButtonHeight));
+            }
+            else
+            {
+                SetRect(pingMapButtonObject, anchor: new Vector2(1f, 1f), pivot: new Vector2(0f, 1f), position: new Vector2(0 - padding - buttonWidth, secondRowTop), size: new Vector2(buttonWidth, rowHeight));
+                SetRect(okayButtonObject, anchor: new Vector2(1f, 0f), pivot: new Vector2(1f, 0f), position: new Vector2(0 - padding, padding), size: new Vector2(submitButtonWidth, submitButtonHeight));
+                SetRect(cancelButtonObject, anchor: new Vector2(1f, 0f), pivot: new Vector2(1f, 0f), position: new Vector2(0 - padding - submitButtonWidth - padding, padding), size: new Vector2(submitButtonWidth, submitButtonHeight));
+            }
+
             okayButtonObject.GetComponentInChildren<Text>().text = Localization.instance.Localize(travelMode ? "$hud_xportal_travel" : "$menu_ok");
+        }
+
+        private static void SetRect(GameObject go, Vector2 anchor, Vector2 pivot, Vector2 position, Vector2 size)
+        {
+            var rt = go.GetComponent<RectTransform>();
+            rt.anchorMin = anchor;
+            rt.anchorMax = anchor;
+            rt.pivot = pivot;
+            rt.sizeDelta = size;
+            rt.anchoredPosition = position;
+        }
+
+        /// <summary>
+        /// The text that represents a portal in the list of destinations
+        /// </summary>
+        private string GetDestinationLabel(KnownPortal portal)
+        {
+            // Get portal name
+            string portalName = portal.Name;
+
+            if (string.IsNullOrEmpty(portalName))
+            {
+                portalName = Localization.instance.Localize("$piece_portal_tag_none"); // "(No Name)"
+            }
+
+            // Calculate portal distance
+            var distanceTag = string.Empty;
+            if (!XPortalConfig.Instance.Server.HidePortalDistance)
+            {
+                float distance = (int)Vector3.Distance(thisPortal.Location, portal.Location);
+                string strDistance = string.Format("{0} m", distance.ToString());
+                if (distance >= 1000)
+                {
+                    strDistance = string.Format("{0:0.0} km", distance / 1000);
+                }
+
+                distanceTag = $"  ({strDistance})";
+            }
+
+            var colourTag = string.Empty;
+            if (XPortalConfig.Instance.Local.DisplayPortalColour)
+            {
+                colourTag = $"<color={portal.Colour}>>> </color>";
+            }
+
+            return $"{colourTag}{portalName}{distanceTag}";
+        }
+
+        private void PopulateTravelList()
+        {
+            var content = travelListScrollRect.content;
+
+            // Forget what we know
+            foreach (Transform child in content)
+            {
+                GameObject.Destroy(child.gameObject);
+            }
+            travelListItems.Clear();
+            travelListSelectedIndex = -1;
+
+            int selectIndex = 0;
+
+            // Get all KnownPortals, sorted by Name
+            foreach (var portal in KnownPortalsManager.Instance.GetSortedList())
+            {
+                // Skip the one we're standing in
+                if (portal.Id == thisPortal.Id)
+                {
+                    continue;
+                }
+
+                int index = travelListItems.Count;
+                if (portal.Id == selectedTargetId)
+                {
+                    selectIndex = index;
+                }
+
+                var itemObject = new GameObject($"{GO_TRAVELLIST}_Item", typeof(RectTransform), typeof(Image), typeof(Button));
+                itemObject.transform.SetParent(content, worldPositionStays: false);
+
+                var itemRt = itemObject.GetComponent<RectTransform>();
+                itemRt.anchorMin = new Vector2(0f, 1f);     // anchor top left
+                itemRt.anchorMax = new Vector2(1f, 1f);     // anchor top right (so it stretches along with the list)
+                itemRt.pivot = new Vector2(0.5f, 1f);       // pivot top middle
+                itemRt.sizeDelta = new Vector2(0f, travelListItemHeight - 2f);
+                itemRt.anchoredPosition = new Vector2(0f, -index * travelListItemHeight);
+
+                var itemImage = itemObject.GetComponent<Image>();
+                itemImage.color = travelListItemColour;
+
+                // Brighten the item a little when hovering over it
+                var itemButton = itemObject.GetComponent<Button>();
+                itemButton.targetGraphic = itemImage;
+                itemButton.navigation = new Navigation { mode = Navigation.Mode.None };
+                itemButton.colors = new ColorBlock
+                {
+                    normalColor = new Color(0.85f, 0.85f, 0.85f, 1f),
+                    highlightedColor = Color.white,
+                    pressedColor = Color.white,
+                    selectedColor = new Color(0.85f, 0.85f, 0.85f, 1f),
+                    disabledColor = new Color(0.5f, 0.5f, 0.5f, 1f),
+                    colorMultiplier = 1f,
+                    fadeDuration = 0.1f
+                };
+                itemButton.onClick.AddListener(() => OnTravelListItemClicked(index));
+
+                var itemTextObject = GUIManager.Instance.CreateText(
+                        text: GetDestinationLabel(portal),
+                        parent: itemObject.transform,
+                        anchorMin: new Vector2(0f, 0f),
+                        anchorMax: new Vector2(1f, 1f),
+                        position: Vector2.zero,
+                        font: GUIManager.Instance.AveriaSerifBold,
+                        fontSize: 18,
+                        color: GUIManager.Instance.ValheimOrange,
+                        outline: true,
+                        outlineColor: Color.black,
+                        width: 0f,
+                        height: 0f,
+                        addContentSizeFitter: false);
+                var itemTextRt = itemTextObject.GetComponent<RectTransform>();
+                itemTextRt.offsetMin = new Vector2(12f, 0f);
+                itemTextRt.offsetMax = new Vector2(-12f, 0f);
+                var itemText = itemTextObject.GetComponent<Text>();
+                itemText.alignment = TextAnchor.MiddleLeft;
+                itemText.horizontalOverflow = HorizontalWrapMode.Overflow;
+                itemText.raycastTarget = false;
+
+                travelListItems.Add(new KeyValuePair<ZDOID, Image>(portal.Id, itemImage));
+            }
+
+            content.sizeDelta = new Vector2(content.sizeDelta.x, travelListItems.Count * travelListItemHeight);
+            content.anchoredPosition = new Vector2(content.anchoredPosition.x, 0f);
+            travelListEmptyObject.SetActive(travelListItems.Count == 0);
+
+            SelectTravelListItem(selectIndex);
+        }
+
+        private void SelectTravelListItem(int index)
+        {
+            if (travelListItems.Count == 0)
+            {
+                selectedTargetId = ZDOID.None;
+                SetPingMapButtonActive(false);
+                return;
+            }
+
+            index = Mathf.Clamp(index, 0, travelListItems.Count - 1);
+
+            if (travelListSelectedIndex >= 0 && travelListSelectedIndex < travelListItems.Count)
+            {
+                travelListItems[travelListSelectedIndex].Value.color = travelListItemColour;
+            }
+
+            travelListSelectedIndex = index;
+            travelListItems[index].Value.color = travelListSelectedItemColour;
+            selectedTargetId = travelListItems[index].Key;
+            SetPingMapButtonActive(true);
+
+            // Scroll the selected item into view
+            var content = travelListScrollRect.content;
+            float scrollTop = content.anchoredPosition.y;
+            float itemTop = index * travelListItemHeight;
+            float itemBottom = itemTop + travelListItemHeight;
+            float viewportHeight = travelListScrollRect.viewport.rect.height;
+            if (itemTop < scrollTop)
+            {
+                scrollTop = itemTop;
+            }
+            else if (itemBottom > scrollTop + viewportHeight)
+            {
+                scrollTop = itemBottom - viewportHeight;
+            }
+            travelListScrollRect.StopMovement();
+            content.anchoredPosition = new Vector2(content.anchoredPosition.x, scrollTop);
         }
 
         private void PopulateDropdown()
@@ -304,19 +532,11 @@ namespace XPortal.UI
 
             int index = -1;
 
-            if (travelMode)
-            {
-                // There is no point in travelling to "(None)"
-                targetPortalDropdown.value = 0;
-            }
-            else
-            {
-                // Add "None" option at index `0`
-                var strNone = Localization.instance.Localize("$piece_portal_target_none"); // "(None)"
-                targetPortalDropdown.options.Insert(++index, new Dropdown.OptionData(strNone));
-                targetPortalDropdown.value = index;
-                dropdownIndexToZDOIDMapping.Add(index, ZDOID.None);
-            }
+            // Add "None" option at index `0`
+            var strNone = Localization.instance.Localize("$piece_portal_target_none"); // "(None)"
+            targetPortalDropdown.options.Insert(++index, new Dropdown.OptionData(strNone));
+            targetPortalDropdown.value = index;
+            dropdownIndexToZDOIDMapping.Add(index, ZDOID.None);
 
             // Get all KnownPortals, sorted by Name
             var portalsSorted = KnownPortalsManager.Instance.GetSortedList();
@@ -329,35 +549,7 @@ namespace XPortal.UI
                     continue;
                 }
 
-                // Get portal name
-                string portalName = portal.Name;
-
-                if (string.IsNullOrEmpty(portalName))
-                {
-                    portalName = Localization.instance.Localize("$piece_portal_tag_none"); // "(No Name)"
-                }
-
-                // Calculate portal distance
-                var distanceTag = string.Empty;
-                if (!XPortalConfig.Instance.Server.HidePortalDistance)
-                {
-                    float distance = (int)Vector3.Distance(thisPortal.Location, portal.Location);
-                    string strDistance = string.Format("{0} m", distance.ToString());
-                    if (distance >= 1000)
-                    {
-                        strDistance = string.Format("{0:0.0} km", distance / 1000);
-                    }
-
-                    distanceTag = $"  ({strDistance})";
-                }
-
-                var colourTag = string.Empty;
-                if (XPortalConfig.Instance.Local.DisplayPortalColour)
-                {
-                    colourTag = $"<color={portal.Colour}>>> </color>";
-                }
-
-                var option = new Dropdown.OptionData($"{colourTag}{portalName}{distanceTag}");
+                var option = new Dropdown.OptionData(GetDestinationLabel(portal));
 
                 // Insert at the next index
                 targetPortalDropdown.options.Insert(++index, option);
@@ -369,12 +561,6 @@ namespace XPortal.UI
                 }
 
                 dropdownIndexToZDOIDMapping.Add(index, portal.Id);
-            }
-
-            if (travelMode)
-            {
-                // The configured destination may not be in the list, so use whatever ended up selected
-                selectedTargetId = dropdownIndexToZDOIDMapping.TryGetValue(targetPortalDropdown.value, out var shownTargetId) ? shownTargetId : ZDOID.None;
             }
 
             targetPortalDropdown.RefreshShownValue();
@@ -405,6 +591,18 @@ namespace XPortal.UI
 
             XPortal.PortalInfoSubmitted(thisPortal, portalNameInputField.text, selectedTargetId, defaultPortalToggle.isOn);
             Hide();
+        }
+
+        private void OnTravelListItemClicked(int index)
+        {
+            if (index == travelListSelectedIndex)
+            {
+                // Clicking the selected portal again travels there
+                OnOkayButtonClicked();
+                return;
+            }
+
+            SelectTravelListItem(index);
         }
 
         private void OnCancelButtonClicked()
@@ -648,7 +846,7 @@ namespace XPortal.UI
 
 
                 // Cancel button
-                var cancelButtonObject = GUIManager.Instance.CreateButton(
+                cancelButtonObject = GUIManager.Instance.CreateButton(
                         text: Localization.instance.Localize("$menu_cancel"),
                         parent: mainPanel.transform,
                         anchorMin: new Vector2(1f, 0f),    // anchor bottom right
@@ -660,6 +858,46 @@ namespace XPortal.UI
                 cancelButtonObject.GetComponent<RectTransform>().pivot = new Vector2(1, 0);    // pivot bottom right
 
                 AddGamepadHint(cancelButtonObject, "JoyButtonB", KeyCode.Escape);
+
+
+                // Travel list (only shown when choosing where to travel to)
+                travelListObject = DefaultControls.CreateScrollView(GUIManager.Instance.ValheimControlResources);
+                travelListObject.name = GO_TRAVELLIST;
+                travelListObject.transform.SetParent(mainPanel.transform, worldPositionStays: false);
+                SetRect(travelListObject, anchor: new Vector2(0f, 1f), pivot: new Vector2(0f, 1f), position: new Vector2(firstColumnLeft, firstRowTop), size: new Vector2(travelListWidth, travelListHeight));
+
+                travelListScrollRect = travelListObject.GetComponent<ScrollRect>();
+                travelListScrollRect.horizontal = false;
+                travelListScrollRect.movementType = ScrollRect.MovementType.Clamped;
+                GameObject.Destroy(travelListScrollRect.horizontalScrollbar.gameObject);
+                travelListScrollRect.horizontalScrollbar = null;
+                travelListScrollRect.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHideAndExpandViewport;
+                travelListScrollRect.verticalScrollbarSpacing = 4f;
+                GUIManager.Instance.ApplyScrollRectStyle(travelListScrollRect);
+                travelListScrollRect.scrollSensitivity = travelListItemHeight;
+
+                // Text shown when there are no other portals
+                travelListEmptyObject = GUIManager.Instance.CreateText(
+                        text: Localization.instance.Localize("$piece_portal_target_none"), // "(None)"
+                        parent: travelListObject.transform,
+                        anchorMin: new Vector2(0f, 0f),
+                        anchorMax: new Vector2(1f, 1f),
+                        position: Vector2.zero,
+                        font: GUIManager.Instance.AveriaSerif,
+                        fontSize: 18,
+                        color: GUIManager.Instance.ValheimOrange,
+                        outline: true,
+                        outlineColor: Color.black,
+                        width: 0f,
+                        height: 0f,
+                        addContentSizeFitter: false);
+                travelListEmptyObject.name = GO_TRAVELLISTEMPTY;
+                var travelListEmptyRt = travelListEmptyObject.GetComponent<RectTransform>();
+                travelListEmptyRt.offsetMin = Vector2.zero;
+                travelListEmptyRt.offsetMax = Vector2.zero;
+                travelListEmptyObject.GetComponent<Text>().alignment = TextAnchor.MiddleCenter;
+
+                travelListObject.SetActive(false);
 
 
                 // Add listeners to button click events
