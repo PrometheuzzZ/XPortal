@@ -64,6 +64,9 @@ namespace XPortal.UI
         static readonly float secondColumnLeft = firstColumnLeft + labelWidth + padding;
         static readonly float configurePanelHeight = 320f;
 
+        // With the travel menu, the destination and default portal rows serve no purpose, so only the name row is shown
+        static readonly float configureNameOnlyPanelHeight = -firstRowTop + rowHeight + padding + submitButtonHeight + padding;
+
         // When travelling, the rows are replaced by a scrollable list of portals:
 
         //////////////////////////////////////////
@@ -318,16 +321,25 @@ namespace XPortal.UI
         /// </summary>
         private void ApplyMode()
         {
+            // Destination and default portal only matter when the travel menu is disabled
+            bool showDestination = !travelMode && !XPortalConfig.Instance.Local.TravelMenuOnEnter;
+
             portalNameLabelObject.SetActive(!travelMode);
             portalNameInputObject.SetActive(!travelMode);
-            targetPortalLabelObject.SetActive(!travelMode);
-            targetPortalDropdownObject.SetActive(!travelMode);
-            defaultPortalLabelObject.SetActive(!travelMode);
-            defaultPortalCheckboxObject.SetActive(!travelMode);
+            targetPortalLabelObject.SetActive(showDestination);
+            targetPortalDropdownObject.SetActive(showDestination);
+            defaultPortalLabelObject.SetActive(showDestination);
+            defaultPortalCheckboxObject.SetActive(showDestination);
             travelListObject.SetActive(travelMode);
 
+            if (!travelMode && !showDestination)
+            {
+                pingMapButtonObject.SetActive(false);
+            }
+
             var mainPanelRT = mainPanel.GetComponent<RectTransform>();
-            mainPanelRT.sizeDelta = new Vector2(mainPanelRT.sizeDelta.x, travelMode ? travelPanelHeight : configurePanelHeight);
+            float panelHeight = travelMode ? travelPanelHeight : (showDestination ? configurePanelHeight : configureNameOnlyPanelHeight);
+            mainPanelRT.sizeDelta = new Vector2(mainPanelRT.sizeDelta.x, panelHeight);
 
             if (travelMode)
             {

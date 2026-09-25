@@ -244,9 +244,14 @@ namespace XPortal
                 }
             }
 
+            // With the travel menu, the destination is chosen when entering the portal, so don't show it
+            var destinationLine = XPortalConfig.Instance.Local.TravelMenuOnEnter
+                ? string.Empty
+                : $"$piece_portal_target: {colourTag}{outputPortalDestination}\n";                // "Destination: {name}"
+
             result = Localization.instance.Localize(
                          $"$piece_portal_tag: {outputPortalName}\n"                         // "Name: {name}"
-                       + $"$piece_portal_target: {colourTag}{outputPortalDestination}\n"    // "Destination: {name}"
+                       + destinationLine
                        + $"[<color=yellow><b>$KEY_Use</b></color>] $piece_portal_settag"    // "[E] Configure"
                      );
         }
