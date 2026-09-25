@@ -24,7 +24,8 @@ jobs:
       - name: Build
         run: .github/build.sh
 
+      # The artifact zip is the Thunderstore package, ready to upload
       - uses: actions/upload-artifact@v4
         with:
-          name: XPortal
-          path: .build/output
+          name: BifrostPortals-thunderstore
+          path: .build/package

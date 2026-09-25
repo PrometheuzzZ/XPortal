@@ -12,12 +12,14 @@ namespace XPortal
 {
     [BepInPlugin(Mod.Info.GUID, Mod.Info.Name, Mod.Info.Version)]
     [BepInIncompatibility("com.sweetgiorni.anyportal")]
+    [BepInIncompatibility(Mod.Info.OriginalGUID)]
     [BepInDependency(Jotunn.Main.ModGuid)]
     [NetworkCompatibility(CompatibilityLevel.EveryoneMustHaveMod, VersionStrictness.Patch)]
     public class XPortal : BaseUnityPlugin
     {
-        public const string Key_TargetId = Mod.Info.Name + "_TargetId";
-        public const string Key_PreviousId = Mod.Info.Name + "_PreviousId";
+        // These are stored in the world, so they keep the original XPortal names to stay compatible with existing worlds
+        public const string Key_TargetId = "XPortal_TargetId";
+        public const string Key_PreviousId = "XPortal_PreviousId";
 
         public const string StonePortalPrefabName = "portal";
 

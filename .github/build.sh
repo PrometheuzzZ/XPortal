@@ -56,10 +56,33 @@ dotnet msbuild "$REPO_DIR/XPortal/XPortal.csproj" \
     -nowarn:MSB3277 \
     -v:minimal
 
-# Plugin folder, ready to be copied to BepInEx/plugins
-OUTPUT_DIR="$REPO_DIR/.build/output/XPortal"
-rm -rf "$OUTPUT_DIR"
-mkdir -p "$OUTPUT_DIR"
-cp "$REPO_DIR/XPortal/bin/$CONFIGURATION/XPortal.dll" "$OUTPUT_DIR/"
-cp -r "$REPO_DIR/XPortal/Translations" "$OUTPUT_DIR/"
-echo "Build output: $OUTPUT_DIR"
+# Read the mod details from ModInfo.cs
+mod_info() { grep -oP "const string $1 = \"\K[^\"]*" "$REPO_DIR/XPortal/ModInfo.cs"; }
+NAME="$(mod_info Name)"
+VERSION="$(mod_info Version)"
+DESCRIPTION="$(mod_info Description)"
+GITHUB_REPO="$(mod_info GitHubRepo)"
+BEPINEX_PACK_VERSION="$(mod_info BepInExPackVersion)"
+JOTUNN_VERSION="$(grep -oP 'id="JotunnLib" version="\K[^"]*' "$REPO_DIR/XPortal/packages.config")"
+
+# Thunderstore package: the contents of this folder are what gets zipped and uploaded
+PACKAGE_DIR="$REPO_DIR/.build/package"
+PLUGIN_DIR="$PACKAGE_DIR/plugins/$NAME"
+rm -rf "$PACKAGE_DIR"
+mkdir -p "$PLUGIN_DIR"
+cp "$REPO_DIR/XPortal/bin/$CONFIGURATION/$NAME.dll" "$PLUGIN_DIR/"
+cp -r "$REPO_DIR/XPortal/Translations" "$PLUGIN_DIR/"
+cp "$REPO_DIR/Thunderstore/icon.png" "$REPO_DIR/Thunderstore/README.md" "$REPO_DIR/Thunderstore/CHANGELOG.md" "$PACKAGE_DIR/"
+cat > "$PACKAGE_DIR/manifest.json" <<JSON
+{
+  "name": "$NAME",
+  "version_number": "$VERSION",
+  "website_url": "https://github.com/$GITHUB_REPO",
+  "description": "$DESCRIPTION",
+  "dependencies": [
+    "denikson-BepInExPack_Valheim-$BEPINEX_PACK_VERSION",
+    "ValheimModding-Jotunn-$JOTUNN_VERSION"
+  ]
+}
+JSON
+echo "Thunderstore package: $PACKAGE_DIR"

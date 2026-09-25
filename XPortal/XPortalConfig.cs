@@ -72,9 +72,6 @@ namespace XPortal
         /// </summary>
         private void ReloadLocalConfig()
         {
-            // Add Nexus ID to config for Nexus Update Check (https://www.nexusmods.com/valheim/mods/102)
-            configFile.Bind("General", "NexusID", Mod.Info.NexusId, "Nexus mod ID for updates (do not change)");
-
             // Add PingMapDisabled option which disables the Ping Map button
             var cfgPingMapDisabled = configFile.Bind("General", "PingMapDisabled", false, "Disable the Ping Map button completely. For players who wish to play without a map." + Desc_EnforcedByServer);
             Local.PingMapDisabled = cfgPingMapDisabled.Value;
